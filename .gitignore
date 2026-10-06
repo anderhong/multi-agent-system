@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 個人 Data（唔好上傳）
+feedback_log.jsonl
+*.log
+
+# 環境變數
+.env
+
+# 個人設定
+.vscode/
+.idea/
