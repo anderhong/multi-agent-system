@@ -16,32 +16,32 @@ import json
 import re
 from datetime import datetime
 
-# 🆕 Feedback 儲存檔案
+# Feedback storage file
 FEEDBACK_FILE = "feedback_log.jsonl"
 
 
-# ============ 0. 自訂 Guardrail ============
+# ============ 0. Custom guardrail ============
 class SensitiveDataGuardrail(AgentMiddleware):
-    """自訂 Guardrail：偵測敏感資料同危險內容"""
+    """Custom guardrail for detecting sensitive data and unsafe content."""
 
     def __init__(self):
         self.patterns = {
-            # --- 敏感資料 ---
+            # --- Sensitive data ---
             "email": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
             "credit_card": r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
             "api_key": r"sk-[a-zA-Z0-9]{20,}",            
             "phone": r"(\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}",
             "nz_ird": r"\b\d{2,3}-\d{3}-\d{3}\b",
 
-            # --- 粗口 / 侮辱 ---
+            # --- Profanity and insults ---
             "profanity": r"\b(fuck|shit|damn|bastard|asshole)\b",
             "chinese_profanity": r"(屌|仆街|戇鳩|死開|白痴)",
 
-            # --- 危險 / 非法指令 ---
+            # --- Dangerous or illegal requests ---
             "dangerous_commands": r"\b(kill|hack|bomb|attack|explode|poison|murder)\b",
             "illegal_activity": r"\b(cocaine|heroin|meth|weapon|gun)\b",
 
-            # --- 自殺 / 自殘 ---
+            # --- Suicide and self-harm ---
             "self_harm": r"\b(suicide|kill myself|self-harm|end my life)\b",
         }
 
@@ -59,14 +59,14 @@ class SensitiveDataGuardrail(AgentMiddleware):
         }
 
     def check(self, text: str):
-        """檢查文字係咪 Safe。回傳 (is_safe, reason)"""
+        """Check whether text is safe and return ``(is_safe, reason)``."""
         for data_type, pattern in self.patterns.items():
             if re.search(pattern, text, re.IGNORECASE):
                 return False, data_type
         return True, ""
 
     def before_agent(self, state, runtime):
-        """喺 Agent 執行之前檢查 Input"""
+        """Validate the input before the agent runs."""
         last_message = state["messages"][-1].content
 
         for data_type, pattern in self.patterns.items():
@@ -85,7 +85,7 @@ class SensitiveDataGuardrail(AgentMiddleware):
 
 # ============ 1. Feedback Logger ============
 def log_feedback(query: str, response: str, rating: int):
-    """將 Feedback 寫入 JSONL 檔案"""
+    """Write feedback to the JSONL log file."""
     entry = {
         "timestamp": datetime.now().isoformat(),
         "query": query,
@@ -97,7 +97,7 @@ def log_feedback(query: str, response: str, rating: int):
     print(f"✅ Feedback recorded: {rating}/10")
 
 
-# ============ 2. 定義 Tools ============
+# ============ 2. Define tools ============
 wiki_wiki = wikipediaapi.Wikipedia(language='en', user_agent='MyAgent/1.0')
 
 
@@ -219,7 +219,7 @@ def get_stock_price(symbol: str) -> str:
         return f"Error fetching stock price: {str(e)}"
 
 
-# ============ 3. 建立 Sub-Agents ============
+# ============ 3. Create sub-agents ============
 llm = ChatOllama(model="llama3.2:3b", temperature=0)
 
 # Research Agent
@@ -263,18 +263,18 @@ Examples:
 )
 
 
-# ============ 4. 建立 Supervisor State ============
+# ============ 4. Create supervisor state ============
 class AgentState(TypedDict):
     messages: Annotated[list, operator.add]
     next: str
     reason: str
 
 
-# ============ 5. Supervisor 決策邏輯（加咗 Guardrail） ============
+# ============ 5. Supervisor decision logic with guardrail checks ============
 def supervisor_node(state: AgentState):
     messages = state["messages"]
 
-    # 🆕 攞 Query
+    # Retrieve the query.
     last_msg = messages[-1] if messages else None
     if isinstance(last_msg, tuple):
         last_message = last_msg[1]
@@ -283,7 +283,7 @@ def supervisor_node(state: AgentState):
     else:
         last_message = str(last_msg)
 
-    # 🆕 喺最前線做 Guardrail 檢查
+    # Run the guardrail check before routing the request.
     guardrail = SensitiveDataGuardrail()
     is_safe, reason = guardrail.check(last_message)
 
@@ -293,13 +293,13 @@ def supervisor_node(state: AgentState):
         print(f"   ⚠️ Request has been blocked.")
         return {"next": "BLOCKED", "reason": reason}
 
-    # 如果已經有 Agent 答過，就 FINISH
+    # Finish after a sub-agent has already produced a response.
     if len(messages) > 1:
         return {"next": "FINISH"}
 
     query = last_message.lower().strip()
 
-    # 即時資訊
+    # Real-time information requests
     realtime_keywords = [
         "weather", "temperature", "forecast", "rain", "sunny",
         "stock", "price", "share", "market", "msft", "aapl", "tsla",
@@ -309,7 +309,7 @@ def supervisor_node(state: AgentState):
         print(f"🎯 [Supervisor] 決定派去 → search_agent（即時資訊）")
         return {"next": "search_agent"}
 
-    # 數學問題
+    # Mathematical questions
     math_keywords = ["calculate", "sum", "plus", "add", "minus", "subtract",
                      "multiply", "times", "divide", "*", "+", "-", "/", "=",
                      "word count", "count words", "how many words", "number of words"]
@@ -317,7 +317,7 @@ def supervisor_node(state: AgentState):
         print(f"🎯 [Supervisor] 決定派去 → math_agent")
         return {"next": "math_agent"}
 
-    # 知識性問題
+    # General knowledge questions
     research_keywords = ["who", "what", "when", "where", "history", "tell me about"]
     if any(kw in query for kw in research_keywords):
         print(f"🎯 [Supervisor] 決定派去 → research_agent")
@@ -327,7 +327,7 @@ def supervisor_node(state: AgentState):
     return {"next": "FINISH"}
 
 
-# ============ 6. 建立 Sub-Agent Nodes ============
+# ============ 6. Create sub-agent nodes ============
 def research_node(state: AgentState):
     print("📚 [Research Agent] 開始處理...")
     result = research_agent.invoke({"messages": state["messages"]})
@@ -350,7 +350,7 @@ def math_node(state: AgentState):
 
 
 def finish_node(state: AgentState):
-    """當 Supervisor 決定 FINISH，由 LLM 直接答"""
+    """Generate a direct LLM response when the supervisor selects ``FINISH``."""
     print("✅ [Finish] 準備回傳答案")
     messages = state["messages"]
 
@@ -370,11 +370,11 @@ def finish_node(state: AgentState):
 
 
 def blocked_node(state: AgentState):
-    """當 Guardrail 觸發，回傳拒答訊息"""
+    """Return a refusal message when the guardrail is triggered."""
     print("🚫 [Blocked Node] 回傳拒答訊息")
     reason = state.get("reason", "sensitive content")
 
-    # 將 Reason 轉做 Human-readable 訊息
+    # Convert the reason into a human-readable message.
     reason_map = {
         "email": "your email address",
         "credit_card": "a credit card number",
@@ -396,7 +396,7 @@ def blocked_node(state: AgentState):
     )]}
 
 
-# ============ 7. 建立 Graph ============
+# ============ 7. Create graph ============
 workflow = StateGraph(AgentState)
 
 workflow.add_node("supervisor", supervisor_node)
@@ -429,7 +429,7 @@ workflow.add_edge("blocked", END)  # 🆕
 graph = workflow.compile()
 
 
-# ============ 8. 測試 ============
+# ============ 8. Test ============
 if __name__ == "__main__":
     print("="*50)
     print("Multi-Agent System 已啟動！")

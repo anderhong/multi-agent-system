@@ -10,13 +10,13 @@ dist/
 venv/
 env/
 
-# 個人 Data（唔好上傳）
+# Personal data (do not commit)
 feedback_log.jsonl
 *.log
 
-# 環境變數
+# Environment variables
 .env
 
-# 個人設定
+# Personal settings
 .vscode/
 .idea/
